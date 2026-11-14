@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useNavigation } from "react-router";
+import { Form, Link, useLoaderData, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import { authenticate } from "../shopify.server";
@@ -114,7 +114,7 @@ export default function InventoryDashboard() {
               autoComplete="off"
             />
           </label>
-          <form method="get" className={styles.thresholdForm}>
+          <Form method="get" replace className={styles.thresholdForm}>
             <label className={styles.field}>
               <span>Low-stock threshold</span>
               <input
@@ -130,7 +130,7 @@ export default function InventoryDashboard() {
             <button type="submit" className={styles.applyButton}>
               Apply
             </button>
-          </form>
+          </Form>
         </div>
 
         <p className={styles.hint}>
