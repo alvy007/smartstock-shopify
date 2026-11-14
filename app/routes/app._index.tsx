@@ -1,352 +1,237 @@
-import { useEffect } from "react";
-import type {
-  ActionFunctionArgs,
-  HeadersFunction,
-  LoaderFunctionArgs,
-} from "react-router";
-import { useFetcher } from "react-router";
-import { useAppBridge } from "@shopify/app-bridge-react";
-import { authenticate } from "../shopify.server";
+import { useMemo, useState } from "react";
+import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import { Link, useLoaderData, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
+import { authenticate } from "../shopify.server";
+import { loadInventoryPage } from "../lib/inventory.server";
+import {
+  filterInventory,
+  getInventoryStatus,
+  parseThreshold,
+  summarizeInventory,
+  type InventoryStatus,
+} from "../lib/inventory";
+import styles from "../styles/inventory.module.css";
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-
-  return null;
-};
-
-export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-            demoInfo: metafield(namespace: "$app", key: "demo_info") {
-              jsonValue
-            }
-          }
-        }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-          metafields: [
-            {
-              namespace: "$app",
-              key: "demo_info",
-              value: "Created by React Router Template",
-            },
-          ],
-        },
-      },
-    },
-  );
-  const responseJson = await response.json();
+  const url = new URL(request.url);
 
-  const product = responseJson.data!.productCreate!.product!;
-  const variantId = product.variants.edges[0]!.node!.id!;
+  const rawCursor = url.searchParams.get("cursor");
+  const cursor = rawCursor && rawCursor.length <= 2048 ? rawCursor : null;
+  const direction =
+    url.searchParams.get("direction") === "previous" ? "previous" : "next";
+  const threshold = parseThreshold(url.searchParams.get("threshold"));
 
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
-        }
-      }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
-  );
-
-  const variantResponseJson = await variantResponse.json();
-
-  const metaobjectResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpsertMetaobject($handle: MetaobjectHandleInput!, $values: JSON!) {
-      metaobjectUpsert(handle: $handle, values: $values) {
-        metaobject {
-          id
-          handle
-          values
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`,
-    {
-      variables: {
-        handle: {
-          type: "$app:example",
-          handle: "demo-entry",
-        },
-        values: {
-          title: "Demo Entry",
-          description:
-            "This metaobject was created by the Shopify app template to demonstrate the metaobject API.",
-        },
-      },
-    },
-  );
-
-  const metaobjectResponseJson = await metaobjectResponse.json();
-
-  return {
-    product: responseJson!.data!.productCreate!.product,
-    variant:
-      variantResponseJson!.data!.productVariantsBulkUpdate!.productVariants,
-    metaobject: metaobjectResponseJson!.data!.metaobjectUpsert!.metaobject,
-  };
+  const page = await loadInventoryPage(admin, cursor, direction);
+  return { ...page, threshold };
 };
 
-export default function Index() {
-  const fetcher = useFetcher<typeof action>();
+const statusLabels: Record<InventoryStatus, string> = {
+  healthy: "In stock",
+  low: "Low stock",
+  out: "Out of stock",
+  untracked: "Not tracked",
+};
 
-  const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
+const statusClasses: Record<InventoryStatus, string> = {
+  healthy: styles.healthy,
+  low: styles.low,
+  out: styles.out,
+  untracked: styles.untracked,
+};
 
-  useEffect(() => {
-    if (fetcher.data?.product?.id) {
-      shopify.toast.show("Product created");
-    }
-  }, [fetcher.data?.product?.id, shopify]);
+function makePageLink(
+  cursor: string | null,
+  direction: "next" | "previous",
+  threshold: number,
+): string {
+  const params = new URLSearchParams({ threshold: String(threshold) });
+  if (cursor) {
+    params.set("cursor", cursor);
+    params.set("direction", direction);
+  }
+  return `/app?${params.toString()}`;
+}
 
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
+export default function InventoryDashboard() {
+  const { rows, pageInfo, threshold } = useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const [search, setSearch] = useState("");
+
+  const summary = useMemo(
+    () => summarizeInventory(rows, threshold),
+    [rows, threshold],
+  );
+  const filtered = useMemo(() => filterInventory(rows, search), [rows, search]);
+  const navigating = navigation.state !== "idle";
 
   return (
-    <s-page heading="Shopify app template">
-      <s-button slot="primary-action" onClick={generateProduct}>
-        Generate a product
+    <s-page heading="SmartStock Inventory">
+      <s-button slot="primary-action" href="/app">
+        Refresh inventory
       </s-button>
 
-      <s-section heading="Congrats on creating a new Shopify app 🎉">
-        <s-paragraph>
-          This embedded app template uses{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/tools/app-bridge"
-            target="_blank"
-          >
-            App Bridge
-          </s-link>{" "}
-          interface examples like an{" "}
-          <s-link href="/app/additional">additional page in the app nav</s-link>
-          , as well as an{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            Admin GraphQL
-          </s-link>{" "}
-          mutation demo, to provide a starting point for app development.
-        </s-paragraph>
+      <s-section heading="Stock overview">
+        <p className={styles.intro}>
+          Monitor Shopify product variants and spot items that need attention.
+          Quantities are Shopify's total sellable inventory across locations.
+        </p>
+        <div className={styles.metrics} aria-live="polite">
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>Variants on this page</span>
+            <strong className={styles.metricNumber}>{summary.loaded}</strong>
+          </div>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>In stock</span>
+            <strong className={styles.metricNumber}>{summary.healthy}</strong>
+          </div>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>Low stock</span>
+            <strong className={styles.metricNumber}>{summary.low}</strong>
+          </div>
+          <div className={styles.metric}>
+            <span className={styles.metricLabel}>Out of stock</span>
+            <strong className={styles.metricNumber}>{summary.out}</strong>
+          </div>
+        </div>
+        <p className={styles.hint}>
+          These counts describe the currently loaded page, not the entire
+          catalog. Untracked or unavailable inventory: {summary.untracked}.
+        </p>
       </s-section>
-      <s-section heading="Get started with products">
-        <s-paragraph>
-          Generate a product with GraphQL and get the JSON output for that
-          product. Learn more about the{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-            target="_blank"
-          >
-            productCreate
-          </s-link>{" "}
-          mutation in our API references. Includes a product{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data/metafields"
-            target="_blank"
-          >
-            metafield
-          </s-link>{" "}
-          and{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data/metaobjects"
-            target="_blank"
-          >
-            metaobject
-          </s-link>
-          .
-        </s-paragraph>
-        <s-stack direction="inline" gap="base">
-          <s-button
-            onClick={generateProduct}
-            {...(isLoading ? { loading: true } : {})}
-          >
-            Generate a product
-          </s-button>
-          {fetcher.data?.product && (
-            <s-button
-              onClick={() => {
-                shopify.intents.invoke?.("edit:shopify/Product", {
-                  value: fetcher.data?.product?.id,
-                });
-              }}
-              target="_blank"
-              variant="tertiary"
-            >
-              Edit product
-            </s-button>
-          )}
-        </s-stack>
-        {fetcher.data?.product && (
-          <s-section heading="productCreate mutation">
-            <s-stack direction="block" gap="base">
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  <code>{JSON.stringify(fetcher.data.product, null, 2)}</code>
-                </pre>
-              </s-box>
 
-              <s-heading>productVariantsBulkUpdate mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  <code>{JSON.stringify(fetcher.data.variant, null, 2)}</code>
-                </pre>
-              </s-box>
+      <s-section heading="Inventory details">
+        <div className={styles.toolbar}>
+          <label className={styles.field}>
+            <span>Search on this page</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Product, variant, or SKU"
+              autoComplete="off"
+            />
+          </label>
+          <form method="get" className={styles.thresholdForm}>
+            <label className={styles.field}>
+              <span>Low-stock threshold</span>
+              <input
+                type="number"
+                name="threshold"
+                min="0"
+                max="1000"
+                step="1"
+                defaultValue={threshold}
+                key={threshold}
+              />
+            </label>
+            <button type="submit" className={styles.applyButton}>
+              Apply
+            </button>
+          </form>
+        </div>
 
-              <s-heading>metaobjectUpsert mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  <code>
-                    {JSON.stringify(fetcher.data.metaobject, null, 2)}
-                  </code>
-                </pre>
-              </s-box>
-            </s-stack>
-          </s-section>
+        <p className={styles.hint}>
+          Showing {filtered.length} of {rows.length} variants loaded on this
+          page. Search is local to this page; use Next to browse more products.
+          {navigating ? " Loading…" : ""}
+        </p>
+
+        {rows.length === 0 ? (
+          <div className={styles.empty}>
+            <h2>No products found</h2>
+            <p>
+              Add demo products to your Shopify development store, then refresh
+              this page.
+            </p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className={styles.empty}>
+            No matching variants on this page. Try a different search.
+          </div>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope="col">Product</th>
+                  <th scope="col">SKU</th>
+                  <th scope="col" className={styles.number}>Available</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((row) => {
+                  const status = getInventoryStatus(
+                    row.quantity,
+                    row.tracked,
+                    threshold,
+                  );
+                  return (
+                    <tr key={row.id}>
+                      <td>
+                        <span className={styles.product}>{row.productTitle}</span>
+                        {row.variantTitle && (
+                          <span className={styles.variant}>{row.variantTitle}</span>
+                        )}
+                      </td>
+                      <td className={styles.sku}>{row.sku || "—"}</td>
+                      <td className={styles.number}>
+                        {row.tracked && row.quantity !== null
+                          ? row.quantity.toLocaleString()
+                          : "—"}
+                      </td>
+                      <td>
+                        <span className={`${styles.status} ${statusClasses[status]}`}>
+                          {statusLabels[status]}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
+
+        <nav className={styles.pagination} aria-label="Inventory pagination">
+          {pageInfo.hasPreviousPage && pageInfo.startCursor ? (
+            <Link
+              to={makePageLink(pageInfo.startCursor, "previous", threshold)}
+              className={styles.pageButton}
+              aria-label="Previous inventory page"
+            >
+              Previous
+            </Link>
+          ) : (
+            <span className={styles.pageDisabled}>Previous</span>
+          )}
+          <span className={styles.pageHint}>Up to 50 variants per page</span>
+          {pageInfo.hasNextPage && pageInfo.endCursor ? (
+            <Link
+              to={makePageLink(pageInfo.endCursor, "next", threshold)}
+              className={styles.pageButton}
+              aria-label="Next inventory page"
+            >
+              Next
+            </Link>
+          ) : (
+            <span className={styles.pageDisabled}>Next</span>
+          )}
+        </nav>
       </s-section>
 
-      <s-section slot="aside" heading="App template specs">
+      <s-section slot="aside" heading="About this version">
         <s-paragraph>
-          <s-text>Framework: </s-text>
-          <s-link href="https://reactrouter.com/" target="_blank">
-            React Router
-          </s-link>
+          SmartStock is in active development. This dashboard reads Shopify
+          inventory only and never changes stock quantities.
         </s-paragraph>
-        <s-paragraph>
-          <s-text>Interface: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/app-home/using-polaris-components"
-            target="_blank"
-          >
-            Polaris web components
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>API: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            GraphQL
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Custom data: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data"
-            target="_blank"
-          >
-            Metafields &amp; metaobjects
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Database: </s-text>
-          <s-link href="https://www.prisma.io/" target="_blank">
-            Prisma
-          </s-link>
-        </s-paragraph>
-      </s-section>
-
-      <s-section slot="aside" heading="Next steps">
-        <s-unordered-list>
-          <s-list-item>
-            Build an{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/getting-started/build-app-example"
-              target="_blank"
-            >
-              example app
-            </s-link>
-          </s-list-item>
-          <s-list-item>
-            Explore Shopify&apos;s API with{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-              target="_blank"
-            >
-              GraphiQL
-            </s-link>
-          </s-list-item>
-        </s-unordered-list>
+        <s-link href="/app/additional">How to use SmartStock</s-link>
       </s-section>
     </s-page>
   );
 }
 
-export const headers: HeadersFunction = (headersArgs) => {
-  return boundary.headers(headersArgs);
-};
+export const headers: HeadersFunction = (args) => boundary.headers(args);

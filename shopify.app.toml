@@ -1,77 +1,26 @@
-# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
-
+# SmartStock: read-only embedded Shopify inventory dashboard.
+# Shopify CLI updates application_url and redirect_urls during local development.
 client_id = "de1f4c6999537a02ccb75ff8710ad527"
 application_url = "https://example.com"
 embedded = true
-name = "Alvy Development Studio"
+name = "SmartStock Inventory"
 
 [access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,write_metaobjects,write_metaobject_definitions"
-
-[product.metafields.app.demo_info]
-type = "single_line_text_field"
-name = "Demo Source Info"
-description = "Tracks products created by the Shopify app template for development"
-
-  [product.metafields.app.demo_info.access]
-  admin = "merchant_read_write"
-
-[metaobjects.app.example]
-name = "Example"
-description = "An example metaobject definition created by this template"
-
-  [metaobjects.app.example.access]
-  admin = "merchant_read_write"
-
-[metaobjects.app.example.fields.title]
-name = "Title"
-type = "single_line_text_field"
-required = true
-
-[metaobjects.app.example.fields.description]
-name = "Description"
-type = "multi_line_text_field"
+scopes = "read_products,read_inventory"
 
 [webhooks]
-api_version = "2027-01"
+api_version = "2026-07"
 
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/uninstalled"
-  topics = [ "app/uninstalled" ]
+[[webhooks.subscriptions]]
+topics = ["app/uninstalled"]
+uri = "/webhooks/app/uninstalled"
 
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/app/scopes_update"
-  topics = [ "app/scopes_update" ]
-
-[events]
-api_version = "2026-10"
-
-  [[events.subscription]]
-  handle = "product-price-change"
-  topic = "Product"
-  actions = [ "update" ]
-  triggers = [ "product.variants.price", "product.variants.compareAtPrice" ]
-  uri = "/webhooks/products/update"
-  query = """
-  query product_variant_price_change($productId: ID!, $variantsId: ID!) {\r
-    product(id: $productId) {\r
-      id\r
-      title\r
-      status\r
-    }\r
-    productVariant(id: $variantsId) {\r
-      id\r
-      title\r
-      price\r
-      compareAtPrice\r
-    }\r
-  }\r
-  """
-  query_filter = "product.status:'ACTIVE'"
+[[webhooks.subscriptions]]
+topics = ["app/scopes_update"]
+uri = "/webhooks/app/scopes_update"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = ["https://example.com/api/auth"]
 
 [build]
 include_config_on_deploy = true

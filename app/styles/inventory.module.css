@@ -1,0 +1,237 @@
+.intro {
+  margin: 0 0 1.25rem;
+  color: #536171;
+  line-height: 1.55;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+
+.metric {
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+.metricLabel {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #586679;
+  margin-bottom: 0.3rem;
+}
+
+.metricNumber {
+  display: block;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 700;
+  color: #162b3e;
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  color: #64748b;
+  font-size: 0.825rem;
+  margin: 0.75rem 0;
+  line-height: 1.5;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: #283c51;
+}
+
+.field input {
+  border: 1px solid #bdc8d4;
+  background: #fff;
+  border-radius: 0.5rem;
+  color: #172b43;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.68rem 0.75rem;
+  min-height: 2.6rem;
+  min-width: min(20rem, 80vw);
+  box-sizing: border-box;
+}
+
+.thresholdForm {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.thresholdForm input {
+  width: 7.5rem;
+  min-width: 0;
+}
+
+.field input:focus-visible,
+.applyButton:focus-visible,
+.pageButton:focus-visible {
+  outline: 3px solid #70b0ff;
+  outline-offset: 2px;
+}
+
+.applyButton,
+.pageButton {
+  border: 1px solid #265c96;
+  background: #225c95;
+  border-radius: 0.5rem;
+  padding: 0.65rem 1rem;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.applyButton:hover,
+.pageButton:hover {
+  background: #174872;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  max-width: 100%;
+  border: 1px solid #e0e7ee;
+  border-radius: 0.75rem;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 590px;
+  color: #23364a;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  padding: 0.85rem 0.95rem;
+  text-align: left;
+  border-bottom: 1px solid #e8edf2;
+  vertical-align: middle;
+}
+
+.table th {
+  font-size: 0.76rem;
+  font-weight: 650;
+  color: #556779;
+  letter-spacing: 0.025em;
+  background: #f7f9fc;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover {
+  background: #f7fbff;
+}
+
+.number {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.product {
+  display: block;
+  color: #17324c;
+  font-weight: 650;
+}
+
+.variant {
+  display: block;
+  color: #667487;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.sku {
+  color: #4c5f73;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.83rem;
+}
+
+.status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.healthy { color: #13623f; background: #e8f7ef; }
+.low { color: #8c570e; background: #fff4da; }
+.out { color: #a42727; background: #ffeded; }
+.untracked { color: #59697a; background: #edf1f5; }
+
+.empty {
+  padding: 2.75rem 1rem;
+  border: 1px dashed #c9d5e2;
+  border-radius: 0.75rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.empty h2 {
+  font-size: 1.1rem;
+  color: #18354f;
+  margin: 0 0 0.5rem;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.pageHint {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.pageDisabled {
+  padding: 0.65rem 1rem;
+  border: 1px solid #dae1e9;
+  border-radius: 0.5rem;
+  color: #a5b0bb;
+}
+
+@media (max-width: 650px) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toolbar { display: block; }
+  .toolbar > .field { margin-bottom: 0.9rem; }
+  .field input { width: 100%; min-width: 0; }
+  .thresholdForm input { width: 8rem; }
+  .pagination { justify-content: center; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .applyButton,
+  .pageButton { transition: background-color 0.16s ease; }
+}
