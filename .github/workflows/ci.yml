@@ -1,0 +1,37 @@
+name: SmartStock CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Unit tests, typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SHOPIFY_API_KEY: ci-placeholder
+      SHOPIFY_API_SECRET: ci-placeholder
+      SHOPIFY_APP_URL: https://example.com
+      SCOPES: read_products,read_inventory
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run inventory tests
+        run: npm test
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
